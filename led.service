@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/python -u ledgridwebserver.py
-WorkingDirectory=/home/pi/led
+WorkingDirectory=/home/pi/led_matrix_server
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
