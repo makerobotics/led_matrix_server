@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>led matrix control</title>
+    <link rel="stylesheet" href="static/styles.css">
+    <script src="static/designs.js"></script>
+</head>
+<body onload="javascript:init()">
+
+    <h1>led matrix control</h1>
+    <h2 id="status">Offline</h2>
+    <label for="modes">Choose mode</label>
+    <select id="modes" name="modes" onchange="changeMode()">
+      <option value="void"></option>
+      <option value="AUTOMATIC">Automatic</option>
+      <option value="EYE">Eye</option>
+      <option value="FIRE">Fire</option>
+      <option value="SPECTRUM0">Spectrum 0</option>
+      <option value="SPECTRUM1">Spectrum 1</option>
+      <option value="SPECTRUM2">Spectrum 2</option>
+      <option value="SPECTRUM3">Spectrum 3</option>
+      <option value="SPECTRUM4">Spectrum 4</option>
+      <option value="SPECTRUM5">Spectrum 5</option>
+    </select>
+
+    <h2>Pick A Color</h2>
+    <input type="color" id="color-input" value="#00FF00" list="colors">
+    <datalist id="colors">
+        <option>#FF0000</option>
+        <option>#00FF00</option>
+        <option>#0000FF</option>
+        <option>#000000</option>
+        <option>#FFFFFF</option>
+        <option>#FFFF00</option>
+        <option>#00FFFF</option>
+        <option>#FF00FF</option>
+    </datalist>
+    <br><br>
+    <fieldset>
+        <legend>Frame definition</legend>
+        Frame number
+
+        <input type="number" id="frame" min="0" max="32" value="0" onchange="selectFrame()">
+        Delay
+        <input type="number" id="delay" min="0" value="200">
+
+        <p id="nbframes">1 frame</p>
+
+        <canvas id="pixelCanvas" width="400" height="400"></canvas>
+        <br>
+        <button onclick="generateFrame()">Generate frame</button>
+        <button onclick="readFrame()">Read frame from text</button>
+        <br>
+        <textarea id="TEXTBOX_ID" rows="10" cols="60"></textarea>
+        <br>
+        <input type="file" id="asText"><button onclick="sendDirectCommand()">Send command direct</button>
+    </fieldset>
+    <br>
+    <br>
+    <fieldset>
+        <legend>Scrolling text</legend>
+        <textarea id="TEXT_ID" rows="1" cols="60" placeholder="Your text.."></textarea>
+        <br>
+        <button onclick="generateText()">Generate text</button>
+    </fieldset>
+    <!--<br>
+    <br>
+    <fieldset>
+        <legend>Spectrum control</legend>
+        <button onclick="toggleSpectrum()">Toggle display</button>
+    </fieldset>-->
+    <!--<h2>Choose Grid Size</h2>
+    <form id="sizePicker">
+        Rows:
+        <input type="number" id="rows-input" min="1" value="8">
+        Columns:
+        <input type="number" id="cols-input"min="1" value="8">
+        <input type="submit" id="submit-btn">
+    </form>-->
+
+</body>
+</html>
