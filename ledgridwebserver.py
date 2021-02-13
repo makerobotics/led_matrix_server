@@ -49,7 +49,10 @@ class Control(Thread):
     def job_time(self):
         now = datetime.now() # current date and time
         time_string = now.strftime("%H:%M")
-        client.publish("global/led", '{"text":"'+time_string+'", "delay":150, "fg":"0,0,200,"}')
+        if(now.hour > 17 and now.hour < 8):
+            client.publish("global/led", '{"text":"'+time_string+'", "delay":150, "fg":"0,0,200,"}')
+        else:
+            client.publish("global/led", '{"text":"'+time_string+'", "delay":150, "fg":"200,200,200,"}')
         #print('{"text":"'+time_string+'", "delay":200, "fg":"0,0,200,"}')
 
     def run(self):
