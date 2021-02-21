@@ -265,13 +265,13 @@ function init(){
 
 
     // When size is submitted by the user, call makeGrid()
-    submitBtn.onclick = function(event){
+    /*submitBtn.onclick = function(event){
         event.preventDefault();
 
         numRows = Number(rowsInput.value);
         numCols = Number(colsInput.value);
         makeGrid(numRows, numCols, "gray");
-    };
+    };*/
 
     canvas.onclick = function(event){
         event.preventDefault();

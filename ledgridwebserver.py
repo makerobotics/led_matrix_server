@@ -5,6 +5,7 @@ import schedule
 from datetime import datetime
 import logging
 from threading import Thread
+from random import randrange
 import paho.mqtt.client as mqtt
 from tornado.options import options, define, parse_command_line
 import tornado.httpserver
@@ -37,11 +38,18 @@ def on_connect(client, userdata, flags, rc):
 
 class Control(Thread):
     def __init__(self):
-            Thread.__init__(self)
-            self._running = True
-            self.seq = None
-            self.automatic = False
-            schedule.every(1).minutes.do(self.job_time)
+        Thread.__init__(self)
+        self._running = True
+        self.seq = None
+        self.automatic = False
+        self.nextEyeBlink = 0
+        self.nextEyeSwitch = 0
+        self.nextPupilMove = 0
+        self.eyeColor = 1 #1: GREEN, 2: RED
+        self.pupil_index = 0
+        self.pupil_x = 2 # 3 centre
+        self.pupil_y = 4
+        schedule.every(1).minutes.do(self.job_time)
 
     def terminate(self):
         self._running = False
@@ -49,18 +57,43 @@ class Control(Thread):
     def job_time(self):
         now = datetime.now() # current date and time
         time_string = now.strftime("%H:%M")
-        if(now.hour > 17 and now.hour < 8):
+        if(now.hour > 17 or now.hour < 8):
             client.publish("global/led", '{"text":"'+time_string+'", "delay":150, "fg":"0,0,200,"}')
         else:
             client.publish("global/led", '{"text":"'+time_string+'", "delay":150, "fg":"200,200,200,"}')
         #print('{"text":"'+time_string+'", "delay":200, "fg":"0,0,200,"}')
+
+    def eyeManager(self):
+        pupil_move = [(2,4), (3,4), (4,4), (3,4)]
+        now = round(time.time())
+        if(self.nextEyeBlink < now):
+            client.publish("global/led", "BLINK")
+            self.nextEyeBlink = now + randrange(0, 3)
+        elif(self.nextEyeSwitch < now):
+            if(self.eyeColor == 1):
+                client.publish("global/led", "RED")
+                self.eyeColor = 0
+            else:
+                client.publish("global/led", "GREEN")
+                self.eyeColor = 1
+            self.nextEyeSwitch = now + randrange(6, 10)
+        elif(self.nextPupilMove < now):
+            self.pupil_x = pupil_move[self.pupil_index][0]
+            self.pupil_y = pupil_move[self.pupil_index][1]
+            client.publish("global/led", "PUPIL,"+str(self.pupil_x)+","+str(self.pupil_y)+",")
+            self.pupil_index += 1
+            if(self.pupil_index>=len(pupil_move)):
+                self.pupil_index = 0
+            self.nextPupilMove = now + randrange(0, 2)
 
     def run(self):
         logger.debug('Control thread running')
         while self._running:
             if self.seq == None:
                 time.sleep(0.05)
-                schedule.run_pending()
+                self.eyeManager()
+                if self.automatic == True:
+                    schedule.run_pending()
             else:
                 #
                 jsonstring = {}
@@ -134,19 +167,19 @@ class MyWebSocket(tornado.websocket.WebSocketHandler):
         # SEQUENCE as json string
         if("text" in message):
             client.publish("global/led", message)
-            self.automatic = False
+            c.automatic = False
         elif("AUTOMATIC" in message):
             c.automatic = True
             client.publish("global/led", '{"text":"OK...", "delay":150, "fg":"150,150,150,"}')
             #print("Received AUTOMATIC")
         else:
+            c.automatic = False
             try:
                 obj = json.loads(message)
                 c.seq = obj
             except:
                 # PICTURE as pixel (CLR and SHOW are managed by javascript)
                 client.publish("global/led", message)
-            self.automatic = False
 
     def on_close(self):
         logger.info("WebSocket closed")
