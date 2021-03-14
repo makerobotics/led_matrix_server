@@ -37,16 +37,21 @@ def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
 
 class Control(Thread):
+    COLOR_GREEN = 0
+    COLOR_RED   = 1
+
     def __init__(self):
         Thread.__init__(self)
         self._running = True
         self.seq = None
         self.automatic = False
+        self.mode = ""
         self.nextEyeBlink = 0
         self.nextEyeSwitch = 0
         self.nextPupilMove = 0
         self.eyeColor = 1 #1: GREEN, 2: RED
         self.pupil_index = 0
+        self.pupil_counter = 0
         self.pupil_x = 2 # 3 centre
         self.pupil_y = 4
         schedule.every(1).minutes.do(self.job_time)
@@ -64,43 +69,67 @@ class Control(Thread):
         #print('{"text":"'+time_string+'", "delay":200, "fg":"0,0,200,"}')
 
     def eyeManager(self):
-        pupil_move = [(2,4), (3,4), (4,4), (3,4)]
-        now = round(time.time())
+        PUPIL_MOVE_GREEN = [(100,5),(10,7),(10,6),(10,7),(10,5),(10,8),(10,9),(10,8)] # (delay, index)
+        PUPIL_MOVE_RED = [(100,0),(20,1),(20,0),(20,2)]
+        now = time.time()
+        #print(str(now)+" "+str(self.nextEyeBlink)+" "+str(self.nextEyeSwitch)+" "+str(self.nextPupilMove))
+        #print(str(self.pupil_index)+" "+str(self.eyeColor)+" "+str(self.pupil_counter))
+        #if(self.nextEyeBlink < now) and (self.pupil_index <= 0):
         if(self.nextEyeBlink < now):
             client.publish("global/led", "BLINK")
-            self.nextEyeBlink = now + randrange(0, 3)
+            self.nextEyeBlink = now + randrange(1, 3)
+        #elif(self.nextEyeSwitch < now) and (self.pupil_index <= 0):
         elif(self.nextEyeSwitch < now):
-            if(self.eyeColor == 1):
+            if(self.eyeColor == self.COLOR_GREEN):
                 client.publish("global/led", "RED")
-                self.eyeColor = 0
+                self.eyeColor = self.COLOR_RED
             else:
                 client.publish("global/led", "GREEN")
-                self.eyeColor = 1
-            self.nextEyeSwitch = now + randrange(6, 10)
+                self.eyeColor = self.COLOR_GREEN
+            self.nextEyeSwitch = now + randrange(16, 20)
         elif(self.nextPupilMove < now):
-            self.pupil_x = pupil_move[self.pupil_index][0]
-            self.pupil_y = pupil_move[self.pupil_index][1]
-            client.publish("global/led", "PUPIL,"+str(self.pupil_x)+","+str(self.pupil_y)+",")
-            self.pupil_index += 1
-            if(self.pupil_index>=len(pupil_move)):
-                self.pupil_index = 0
-            self.nextPupilMove = now + randrange(0, 2)
+            #if ((self.nextEyeBlink-now) > 1) and ((self.nextEyeSwitch-now) > 1):
+            if(self.eyeColor == self.COLOR_RED):
+                if(self.pupil_counter <= 0):
+                    if(self.pupil_index >= len(PUPIL_MOVE_RED)):
+                        self.pupil_index = 0
+                    client.publish("global/led", "PUPIL,"+str(PUPIL_MOVE_RED[self.pupil_index][1])+",")
+                    self.pupil_counter = PUPIL_MOVE_RED[self.pupil_index][0]
+                else:
+                    self.pupil_counter -= 1
+            else:
+                if(self.pupil_counter <= 0):
+                    if(self.pupil_index >= len(PUPIL_MOVE_GREEN)):
+                        self.pupil_index = 0
+                    client.publish("global/led", "PUPIL,"+str(PUPIL_MOVE_GREEN[self.pupil_index][1])+",")
+                    self.pupil_counter = PUPIL_MOVE_GREEN[self.pupil_index][0]
+                else:
+                    self.pupil_counter -= 1
+
+            if(self.pupil_counter <= 0):
+                self.pupil_index += 1
+                if(self.eyeColor == self.COLOR_RED) and (self.pupil_index>=len(PUPIL_MOVE_RED)):
+                    self.pupil_index = 0
+                    self.nextPupilMove = now + randrange(0, 1)+0.7
+                if(self.eyeColor == self.COLOR_GREEN) and (self.pupil_index>=len(PUPIL_MOVE_GREEN)):
+                    self.pupil_index = 0
+                    self.nextPupilMove = now + randrange(0, 1)+0.7
 
     def run(self):
         logger.debug('Control thread running')
         while self._running:
             if self.seq == None:
                 time.sleep(0.05)
-                self.eyeManager()
                 if self.automatic == True:
                     schedule.run_pending()
+                if "eye" in self.mode:
+                    self.eyeManager()
+                    #client.publish("global/led", "GREEN")
             else:
-                #
                 jsonstring = {}
                 jsonstring["cmd"] = "SeqDef"
                 jsonstring["FrmCnt"] = len(self.seq["slides"])
                 client.publish("global/led", json.dumps(jsonstring))
-
 
                 i = 0
                 for slides in self.seq["slides"]:
@@ -161,17 +190,23 @@ class MyWebSocket(tornado.websocket.WebSocketHandler):
         logger.info("WebSocket opened")
 
     def on_message(self, message):
-        logger.debug("Server WS msg received: "+ message+"\n")
+        logger.info("Server WS msg received: "+ message)
         #c.seq = None
         #client.publish("global/led", message)
         # SEQUENCE as json string
         if("text" in message):
             client.publish("global/led", message)
             c.automatic = False
+            c.mode = "text"
         elif("AUTOMATIC" in message):
             c.automatic = True
+            c.mode = "auto"
             client.publish("global/led", '{"text":"OK...", "delay":150, "fg":"150,150,150,"}')
             #print("Received AUTOMATIC")
+        elif("EYE" in message):
+            c.mode = "eye"
+            client.publish("global/led", "EYE")
+            c.automatic = False
         else:
             c.automatic = False
             try:
@@ -180,6 +215,7 @@ class MyWebSocket(tornado.websocket.WebSocketHandler):
             except:
                 # PICTURE as pixel (CLR and SHOW are managed by javascript)
                 client.publish("global/led", message)
+                c.mode = message
 
     def on_close(self):
         logger.info("WebSocket closed")
